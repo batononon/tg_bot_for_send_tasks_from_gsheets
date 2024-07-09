@@ -1,0 +1,82 @@
+import requests
+import csv
+import json
+
+# * ur info and url's
+
+# Your Telegram bot token
+TOKEN = '*'
+
+# Google Sheets public table URL
+GOOGLE_SHEET_URL = '*'
+
+# Name for filtering tasks by owner
+MY_NAME = '*'
+
+# Function for getting data from Google Sheets
+def get_google_sheet_data():
+    try:
+        # Send a request to receive data
+        response = requests.get(GOOGLE_SHEET_URL)
+        response.raise_for_status()  # Checking for errors when requesting
+
+        # Reading data from CSV
+        csv_data = response.content.decode('utf-8')
+        reader = csv.DictReader(csv_data.splitlines())
+
+        # Filtering tasks by responsible person
+        tasks_for_me = [task for task in reader if task.get('Who doing', '').strip() == MY_NAME]
+
+        return tasks_for_me
+
+    except requests.exceptions.RequestException as e:
+        print(f"Failed to fetch data: {e}")
+        return None
+
+# Function for sending a message to Telegram with HTML formatting
+def send_message(chat_id, tasks):
+    try:
+        # Forming a message to send to Telegram
+        if tasks:
+            message = "Hi you'r tasks right now:\n\n"
+            for task in tasks:
+                if task.get('In progress', '').strip().lower() == 'In progress':  # Filter by status "In progress"
+                    message += f"<b>Project:</b> {task.get('Project', '')}\n"
+                    message += f"<b>Task direction:</b> {task.get('Task direction', '')}\n" 
+                    message += f"<b>In progress:</b> {task.get('In progress', '')}\n"
+                    message += f"<b>Who doing:</b> {task.get('Who doing', '')}\n"
+                    message += f"<b>DLL:</b> {task.get('DLL', '')}\n\n"
+        else:
+            message = "You don't have tasks."
+
+        url = f'https://api.telegram.org/bot{TOKEN}/sendMessage'
+        payload = {
+            'chat_id': chat_id,
+            'text': message,
+            'parse_mode': 'HTML'  # Using HTML to format text
+        }
+
+        if message.strip():  # Checking that the message is not empty
+            response = requests.post(url, data=payload)
+            response.raise_for_status()  # Checking for errors when sending a message
+
+            print(f"Message sent successfully to {chat_id}")
+        else:
+            print("Message is empty, not sending.")
+
+    except requests.exceptions.RequestException as e:
+        print(f"Failed to send message to {chat_id}: {e}")
+
+# logics of send mssege
+def main():
+    # Determine who we are sending the message to (your chat_id in Telegram)
+    chat_id = '*'  # Replace with your real chat_id
+
+    # Getting data from Google Sheets
+    tasks = get_google_sheet_data()
+
+    # Send a message with data from Google Sheets
+    send_message(chat_id, tasks)
+
+if __name__ == '__main__':
+    main()
